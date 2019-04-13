@@ -100,5 +100,23 @@ namespace BidCat.Banks
 			await RecordTransaction(transaction);
 			return transaction;
 		}
+
+		/// <summary>
+		/// Adds the reserved money checker function to the bank
+		/// </summary>
+		/// <remarks>
+		/// If this is used the function <i>must</i> be removed before the auction object is deleted!
+		/// </remarks>
+		/// <param name="checker">The function to register</param>
+		public void RegisterReservedMoneyChecker(Func<int, Task<int>> checker) => ReservedMoneyCheckerFunctions.Add(checker);
+
+		/// <summary>
+		/// Removes the reserved money checker function from the bank.
+		/// </summary>
+		/// <remarks>
+		/// This <i>must</i> be called when the auction has been finished and fulfilled.
+		/// </remarks>
+		/// <param name="checker"></param>
+		public void DeregisterReservedMoneyChecker(Func<int, Task<int>> checker) => ReservedMoneyCheckerFunctions.Remove(checker);
 	}
 }

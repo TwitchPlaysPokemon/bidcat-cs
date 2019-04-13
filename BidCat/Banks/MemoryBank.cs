@@ -8,7 +8,7 @@ namespace BidCat.Banks
 {
 	public class MemoryBank : AbstractBank
 	{
-		private Dictionary<int, int> storage = new Dictionary<int, int>();
+		private readonly Dictionary<int, int> storage = new Dictionary<int, int>();
 
 		private const int startingAmount = 50000;
 
