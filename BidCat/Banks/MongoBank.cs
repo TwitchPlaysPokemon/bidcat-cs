@@ -35,7 +35,7 @@ namespace BidCat.Banks
 			FieldName = fieldName;
 		}
 
-		protected async override Task<int> GetStoredMoneyValue(int userId)
+		protected override async Task<int> GetStoredMoneyValue(int userId)
 		{
 			IMongoCollection<BsonDocument> result = Db.GetCollection<BsonDocument>(UserCollectionName);
 			BsonDocument userdoc = (await result.FindAsync(x => x["_id"] == userId)).FirstOrDefault();
@@ -44,7 +44,7 @@ namespace BidCat.Banks
 			return userdoc[FieldName].AsInt32;
 		}
 
-		protected async override Task AdjustStoredMoneyValue(int userId, int change)
+		protected override async Task AdjustStoredMoneyValue(int userId, int change)
 		{
 			IMongoCollection<BsonDocument> result = Db.GetCollection<BsonDocument>(UserCollectionName);
 			BsonDocument userdoc = (await result.FindAsync(x => x["_id"] == userId)).FirstOrDefault();
@@ -54,7 +54,7 @@ namespace BidCat.Banks
 			await result.UpdateOneAsync(x => x["_id"] == userId, userdoc);
 		}
 
-		protected async override Task RecordTransaction(Dictionary<string, object> records)
+		protected override async Task RecordTransaction(Dictionary<string, object> records)
 		{
 			BsonDocument document = records.ToBsonDocument();
 			IMongoCollection<BsonDocument> result = Db.GetCollection<BsonDocument>(TransactionsCollectionName);

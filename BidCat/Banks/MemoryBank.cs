@@ -17,14 +17,14 @@ namespace BidCat.Banks
 		{ }
 
 #pragma warning disable 1998
-		protected async override Task<int> GetStoredMoneyValue(int userId)
+		protected override async Task<int> GetStoredMoneyValue(int userId)
 		{
 			if (!storage.ContainsKey(userId))
 				storage[userId] = startingAmount;
 			return storage[userId];
 		}
 
-		protected async override Task AdjustStoredMoneyValue(int userId, int change)
+		protected override async Task AdjustStoredMoneyValue(int userId, int change)
 		{
 			if (!storage.ContainsKey(userId))
 				storage[userId] = startingAmount;
@@ -32,7 +32,7 @@ namespace BidCat.Banks
 			Logger(new ApiLogMessage($"Dummy storage: {{{string.Join(",", storage.Select(kv => kv.Key + " - " + kv.Value.ToString()).ToArray())}}}", ApiLogLevel.Debug));
 		}
 
-		protected async override Task RecordTransaction(Dictionary<string, object> records)
+		protected override async Task RecordTransaction(Dictionary<string, object> records)
 		{
 			//do nothing
 		}

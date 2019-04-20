@@ -29,7 +29,7 @@ namespace BidCat.Banks
 		/// </remarks>
 		/// <param name="userId">id of the user to determine the amount of reserved money for.</param>
 		/// <returns>Positive integer of reserved money, will be 0 if no money reserved.</returns>
-		public async Task<int> GetReserverdMoney(int userId)
+		public async Task<int> GetReservedMoney(int userId)
 		{
 			int reservedMoney = 0;
 			foreach (Func<int, Task<int>> func in ReservedMoneyCheckerFunctions)
@@ -56,7 +56,7 @@ namespace BidCat.Banks
 		/// <returns>the amount of money the user has available, will be 0 in the case of no money.</returns>
 		public async Task<int> GetAvailableMoney(int userId)
 		{
-			return (await GetTotalMoney(userId)) - (await GetReserverdMoney(userId));
+			return (await GetTotalMoney(userId)) - (await GetReservedMoney(userId));
 		}
 
 		protected abstract Task<int> GetStoredMoneyValue(int userId);
@@ -99,6 +99,15 @@ namespace BidCat.Banks
 			Logger(new ApiLogMessage($"Recording transaction: {{{string.Join(",", transaction.Select(kv => kv.Key + " - " + kv.Value.ToString()).ToArray())}}}", ApiLogLevel.Debug));
 			await RecordTransaction(transaction);
 			return transaction;
+		}
+
+		public async Task<List<Dictionary<string, object>>> MakeTransactions(
+			List<Tuple<int, int, Dictionary<string, object>>> records)
+		{
+			List<Dictionary<string, object>> ret = new List<Dictionary<string, object>>();
+			foreach ((int userId, int change, Dictionary<string, object> extra) in records)
+				ret.Add(await MakeTransaction(userId, change, extra));
+			return ret;
 		}
 
 		/// <summary>

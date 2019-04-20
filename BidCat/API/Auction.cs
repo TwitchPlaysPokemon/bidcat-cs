@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using MongoDB.Driver.Core.Authentication;
 
 namespace BidCat.API
 {
@@ -19,6 +20,11 @@ namespace BidCat.API
 		{
 			this.bank = bank;
 			this.bank.RegisterReservedMoneyChecker(GetReservedMoney);
+		}
+
+		~Auction()
+		{
+			bank.DeregisterReservedMoneyChecker(GetReservedMoney);
 		}
 
 		private async Task<int> GetReservedMoney(int userId)
@@ -73,6 +79,84 @@ namespace BidCat.API
 				await PlaceBid(user, item, amount);
 		}
 
+		public async Task ReplaceBid(int user, string item, int amount, bool allowVisibleLowering = false)
+		{
+			await HandleBid(user, item, amount, true, allowVisibleLowering);
+		}
+
+		public async Task ReplaceBids(IEnumerable<Tuple<int, string, int>> bids, bool allowVisibleLowering = false)
+		{
+			foreach ((int user, string item, int amount) in bids)
+				await ReplaceBid(user, item, amount, allowVisibleLowering);
+		}
+
+		public async Task IncreaseBid(int user, string item, int amount)
+		{
+			if (!lotDict.ContainsKey(item))
+				throw new NoExistingBidError("There is no bid from that user on that item which could be replaced.");
+			Tuple<int, int> userObj = lotDict[item].FirstOrDefault(x => x.Item1 == user);
+			if (userObj == null)
+				throw new NoExistingBidError("There is no bid from that user on that item which could be replaced.");
+			int previousBid = userObj.Item2;
+			await ReplaceBid(user, item, amount + previousBid);
+		}
+
+		public async Task IncreaseBids(IEnumerable<Tuple<int, string, int>> bids)
+		{
+			foreach ((int user, string item, int amount) in bids)
+				await IncreaseBid(user, item, amount);
+		}
+
+#pragma warning disable 1998
+		public async Task<bool> RemoveBid(int user, string item)
+		{
+			if (!lotDict.ContainsKey(item) || lotDict[item].FirstOrDefault(x => x.Item1 == user) == null)
+			{
+				return false;
+			}
+
+			lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
+			if (lotDict[item].Any())
+				UpdateLastChange(item);
+			else
+			{
+				lotDict.Remove(item);
+				ChangesTracker.Remove(item);
+			}
+
+			return true;
+		}
+#pragma warning restore 1998
+
+		public async Task<Dictionary<int, bool>> RemoveBids(IEnumerable<Tuple<int, string>> bids)
+		{
+			Dictionary<int, bool> ret = new Dictionary<int, bool>();
+			foreach ((int user, string item) in bids)
+				ret.Add(user, await RemoveBid(user, item));
+			return ret;
+		}
+
+#pragma warning disable 1998
+		public async Task<List<Tuple<int, int>>> GetBidsForItem(string item)
+		{
+			if (!lotDict.ContainsKey(item))
+				throw new ApiError("The specified lot does not exist");
+			return lotDict[item];
+		}
+#pragma warning restore 1998
+
+		public async Task<Dictionary<string, List<Tuple<int, int>>>> GetBidsForItems(IEnumerable<string> items)
+		{
+			Dictionary<string, List<Tuple<int, int>>> ret = new Dictionary<string, List<Tuple<int, int>>>();
+			foreach (string item in items)
+				ret.Add(item, await GetBidsForItem(item));
+			return ret;
+		}
+
+#pragma warning disable 1998
+		public async Task<Dictionary<string, List<Tuple<int, int>>>> GetAllBids() => lotDict;
+#pragma warning restore 1998
+
 		private void UpdateLastChange(string item)
 		{
 			if (ChangesTracker.Contains(item))
@@ -81,7 +165,7 @@ namespace BidCat.API
 		}
 
 		private async Task HandleBid(int user, string item, int amount, bool replace = false,
-			bool allowVisibleLowering = true)
+			bool allowVisibleLowering = false)
 		{
 			if (amount < 1)
 			{
