@@ -106,7 +106,7 @@ namespace BidCat.Banks
 									.CooldownIncrementLength);
 							cooldown.softCooldown.CooldownTimer.Stop();
 							cooldown.softCooldown.CooldownTimer.Dispose();
-							cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+							cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
 							cooldown.softCooldown.CooldownTimer.Elapsed += delegate
 							{
 								SoftTimerElapsed((string) extra["id"]);
@@ -128,7 +128,7 @@ namespace BidCat.Banks
 							}
 						};
 						cooldown.softCooldown.DueTime = DateTime.UtcNow.AddMilliseconds(cooldown.softCooldown.CooldownLength);
-						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
 						cooldown.softCooldown.CooldownTimer.Elapsed += delegate
 						{
 							SoftTimerElapsed((string) extra["cooldown_id"]);
@@ -142,7 +142,7 @@ namespace BidCat.Banks
 			int oldBalance = await GetStoredMoneyValue(userId);
 			await AdjustStoredMoneyValue(userId, change);
 			int newBalance = await GetStoredMoneyValue(userId);
-			Dictionary<string, object> transaction = new Dictionary<string, object>()
+			Dictionary<string, object> transaction = new Dictionary<string, object>
 			{
 				{ "user", userId },
 				{ "change", change },

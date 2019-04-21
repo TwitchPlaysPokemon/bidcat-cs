@@ -19,11 +19,13 @@ namespace BidCat.API
 
 		private Dictionary<string, Cooldown> cooldownDict = new Dictionary<string, Cooldown>();
 
+		private Action<ApiLogMessage> Logger;
 		private Cooldown DefaultCooldown = new Cooldown();
 
 		public AbstractBank bank;
 		public Auction(Action<ApiLogMessage> logger, AbstractBank bank)
 		{
+			Logger = logger;
 			this.bank = bank;
 			this.bank.RegisterReservedMoneyChecker(GetReservedMoney);
 		}
@@ -102,9 +104,10 @@ namespace BidCat.API
 								.CooldownIncrementLength);
 						cooldown.softCooldown.CooldownTimer.Stop();
 						cooldown.softCooldown.CooldownTimer.Dispose();
-						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
 						cooldown.softCooldown.CooldownTimer.Elapsed += delegate { SoftTimerElapsed(winningLot); };
 						cooldown.softCooldown.CooldownTimer.Start();
+						Logger(new ApiLogMessage($"Soft cooldown for lot {winningLot} will expire at {cooldown.softCooldown.DueTime:o}", ApiLogLevel.Info));
 					}
 				}
 				else
@@ -117,9 +120,11 @@ namespace BidCat.API
 					{
 						cooldown.softCooldown.DueTime =
 							DateTime.UtcNow.AddMilliseconds(cooldown.softCooldown.CooldownLength);
-						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
 						cooldown.softCooldown.CooldownTimer.Elapsed += delegate { SoftTimerElapsed(winningLot); };
 						cooldown.softCooldown.CooldownTimer.Start();
+						Logger(new ApiLogMessage($"Soft cooldown for lot {winningLot} will expire at {cooldown.softCooldown.DueTime:o}", ApiLogLevel.Info));
+
 					}
 				}
 			}
@@ -131,30 +136,39 @@ namespace BidCat.API
 				{
 					cooldown.hardCooldown.DueTime =
 						DateTime.UtcNow.AddMilliseconds(cooldown.hardCooldown.CooldownLength);
-					cooldown.hardCooldown.CooldownTimer = new Timer(cooldown.hardCooldown.CooldownLength);
+					Console.WriteLine(cooldown.hardCooldown.DueTime.ToString("o"));
+					cooldown.hardCooldown.CooldownTimer = new Timer((cooldown.hardCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
 					cooldown.hardCooldown.CooldownTimer.Elapsed += delegate { HardTimerElapsed(winningLot); };
 					cooldown.hardCooldown.CooldownTimer.Start();
+					Logger(new ApiLogMessage($"Hard cooldown for lot {winningLot} will expire at {cooldown.hardCooldown.DueTime:o}", ApiLogLevel.Info));
 				}
 			}
 			if (!cooldownDict.ContainsKey(winningLot))
 				cooldownDict.Add(winningLot, cooldown);
 
+			List<string> toRemove = new List<string>();
+
 			foreach (KeyValuePair<string, Cooldown> kvp in cooldownDict.Where(x =>
-				x.Value.softCooldown.CooldownLotBased && x.Key != winningLot))
+				x.Value.softCooldown.CooldownLotBased && x.Key != winningLot && x.Value.softCooldown.CooldownActive))
 			{
 				kvp.Value.softCooldown.CooldownLength--;
 				if (kvp.Value.softCooldown.CooldownLength != 0) continue;
 				kvp.Value.softCooldown.CooldownActive = false;
-				if (!kvp.Value.hardCooldown.CooldownActive) cooldownDict.Remove(kvp.Key);
+				if (!kvp.Value.hardCooldown.CooldownActive) toRemove.Add(kvp.Key);
 			}
 
 			foreach (KeyValuePair<string, Cooldown> kvp in cooldownDict.Where(
-				x => x.Value.hardCooldown.CooldownLotBased && x.Key != winningLot))
+				x => x.Value.hardCooldown.CooldownLotBased && x.Key != winningLot && x.Value.hardCooldown.CooldownActive))
 			{
 				kvp.Value.hardCooldown.CooldownLength--;
 				if (kvp.Value.hardCooldown.CooldownLength != 0) continue;
 				kvp.Value.hardCooldown.CooldownActive = false;
-				if (!kvp.Value.softCooldown.CooldownActive) cooldownDict.Remove(kvp.Key);
+				if (!kvp.Value.softCooldown.CooldownActive) toRemove.Add(kvp.Key);
+			}
+
+			foreach (string key in toRemove)
+			{
+				cooldownDict.Remove(key);
 			}
 			lotDict.Clear();
 		}
@@ -311,8 +325,15 @@ namespace BidCat.API
 			bool allowVisibleLowering = false)
 		{
 			if (amount < 1)
-			{
 				throw new ApiError("Amount must be a number above 0");
+			if (cooldownDict.ContainsKey(item))
+			{
+				Cooldown cooldown = cooldownDict[item];
+				if (cooldown.hardCooldown.CooldownActive)
+					throw new BiddingError("You currently cannot bid on this item.");
+				if (amount < cooldown.softCooldown.CooldownMinimumBid && cooldown.softCooldown.CooldownActive)
+					throw new BidTooLowError(
+						$"The minimum bid for this item is currently {cooldown.softCooldown.CooldownMinimumBid}, you cannot bid {amount}");
 			}
 
 			int? previousBid = null;
@@ -320,15 +341,6 @@ namespace BidCat.API
 				previousBid = lotDict[item].FirstOrDefault(x => x.Item1 == user)?.Item2;
 
 			bool alreadyBid = previousBid != null;
-			if (cooldownDict.ContainsKey(item))
-			{
-				Cooldown cooldown = cooldownDict[item];
-				if (amount < cooldown.softCooldown.CooldownMinimumBid && cooldown.softCooldown.CooldownActive)
-					throw new BidTooLowError(
-						$"The minimum bid for this item is currently {cooldown.softCooldown.CooldownMinimumBid}, you cannot bid {amount}");
-				if (cooldown.hardCooldown.CooldownActive)
-					throw new BiddingError("You currently cannot bid on this item.");
-			}
 
 			if (!replace && alreadyBid)
 				throw new AlreadyBidError("There is already a bid from that user on that item.");
@@ -356,6 +368,8 @@ namespace BidCat.API
 			UpdateLastChange(item);
 			if (!lotDict.ContainsKey(item))
 				lotDict[item] = new List<Tuple<int, int>>();
+			if (replace && lotDict[item].Any(x => x.Item1 == user))
+				lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
 			lotDict[item].Add(new Tuple<int, int>(user, amount));
 		}
 
@@ -390,22 +404,32 @@ namespace BidCat.API
 			int totalBid = winningBids.Sum(x => x.Item2);
 			int overpaid = Math.Max(0, totalBid - secondBid - 1);
 			int totalCharge = totalBid - overpaid;
-			
-			List<Tuple<int, int>> moneyOwed = (from userAmountTuple in winningBids.OrderByDescending(x => x.Item2) let percentage = userAmountTuple.Item2 / (double) totalBid select new Tuple<int, int>(userAmountTuple.Item1, (int) Math.Ceiling(totalCharge * percentage))).ToList();
-
+			List<MutableTuple<int, int>> moneyOwed = (from userAmountTuple in winningBids.OrderByDescending(x => x.Item2) let percentage = userAmountTuple.Item2 / (double) totalBid select new MutableTuple<int, int>(userAmountTuple.Item1, (int) Math.Ceiling(totalCharge * percentage))).ToList();
 			overpaid = moneyOwed.Sum(x => x.Item2) - totalCharge;
-			List<Tuple<int, int>> array = new List<Tuple<int, int>>();
+			List<MutableTuple<int, int>> array = new List<MutableTuple<int, int>>();
 			array.AddRange(moneyOwed);
 			if (discountLatter) array.Reverse();
-			for (int i = overpaid; i <= 0;)
+			while (overpaid > 0)
 			{
-				foreach (Tuple<int, int> user in array)
+				if (overpaid / array.Count >= 1)
 				{
-					Tuple<int, int> temp = moneyOwed.First(x => x.Item1 == user.Item1);
-					Tuple<int, int> temp2 = new Tuple<int, int>(temp.Item1, temp.Item2 - 1);
-					moneyOwed[moneyOwed.IndexOf(temp)] = temp2;
-					i--;
-					if (i == 0) break;
+					double perUserDiscount = (double) overpaid / array.Count;
+					int floorDiscount = (int)Math.Floor(perUserDiscount);
+					foreach (MutableTuple<int, int> user in array)
+					{
+						MutableTuple<int, int> temp = moneyOwed.First(x => x.Item1 == user.Item1);
+						temp.Item2 -= floorDiscount;
+					}
+
+					overpaid -= floorDiscount * array.Count;
+					if (overpaid == 0) break;
+				}
+				foreach (MutableTuple<int, int> user in array)
+				{
+					MutableTuple<int, int> temp = moneyOwed.First(x => x.Item1 == user.Item1);
+					temp.Item2--;
+					overpaid--;
+					if (overpaid == 0) break;
 				}
 			}
 
