@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace BidCat.Banks
 {
@@ -65,6 +66,11 @@ namespace BidCat.Banks
 
 		protected abstract Task RecordTransaction(Dictionary<string, object> records);
 
+		private Dictionary<string, Cooldown> cooldownDict = new Dictionary<string, Cooldown>();
+		private bool cooldownActive = false;
+
+		public Dictionary<string, Cooldown> GetCooldowns() => cooldownDict;
+
 		/// <summary>
 		/// Adjust a user's balance and make a record of it
 		/// </summary>
@@ -80,6 +86,58 @@ namespace BidCat.Banks
 		/// </returns>
 		public async Task<Dictionary<string, object>> MakeTransaction(int userId, int change, Dictionary<string, object> extra)
 		{
+			if (extra.ContainsKey("cooldown") && (bool) extra["cooldown"])
+			{
+				if (extra.ContainsKey("cooldown_id"))
+				{
+					if (cooldownDict.ContainsKey((string) extra["cooldown_id"]))
+					{
+						Cooldown cooldown = cooldownDict[(string) extra["cooldown_id"]];
+						if (cooldown.softCooldown.CooldownActive)
+						{
+							int absChange = Math.Abs(change);
+							if (absChange < cooldown.softCooldown.CooldownMinimumBid)
+								throw new BidTooLowError(
+									$"The minimum bid for this item is currently {cooldown.softCooldown.CooldownMinimumBid}, you cannot bid {absChange}");
+							cooldown.softCooldown.CooldownLength += cooldown.softCooldown.CooldownIncrementLength;
+							cooldown.softCooldown.CooldownMinimumBid += cooldown.softCooldown.CooldownIncrementAmount;
+							cooldown.softCooldown.DueTime =
+								cooldown.softCooldown.DueTime.AddMilliseconds(cooldown.softCooldown
+									.CooldownIncrementLength);
+							cooldown.softCooldown.CooldownTimer.Stop();
+							cooldown.softCooldown.CooldownTimer.Dispose();
+							cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+							cooldown.softCooldown.CooldownTimer.Elapsed += delegate
+							{
+								SoftTimerElapsed((string) extra["id"]);
+							};
+							cooldown.softCooldown.CooldownTimer.Start();
+						}
+					}
+					else if (cooldownActive)
+					{
+						Cooldown cooldown = new Cooldown
+						{
+							softCooldown =
+							{
+								CooldownActive = true,
+								CooldownIncrementAmount = (int) extra["cooldown_increment_amount"],
+								CooldownIncrementLength = (int) extra["cooldown_increment_length"],
+								CooldownLength = (int) extra["cooldown_length"],
+								CooldownMinimumBid = (int) extra["cooldown_minimum_bid"]
+							}
+						};
+						cooldown.softCooldown.DueTime = DateTime.UtcNow.AddMilliseconds(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer.Elapsed += delegate
+						{
+							SoftTimerElapsed((string) extra["cooldown_id"]);
+						};
+						cooldown.softCooldown.CooldownTimer.Start();
+						cooldownDict.Add((string) extra["cooldown_id"], cooldown);
+					}
+				}
+			}
 			Logger(new ApiLogMessage($"Adjusting {userId}'s balance by {change}", ApiLogLevel.Debug));
 			int oldBalance = await GetStoredMoneyValue(userId);
 			await AdjustStoredMoneyValue(userId, change);
@@ -90,15 +148,22 @@ namespace BidCat.Banks
 				{ "change", change },
 				{ "timestamp", DateTime.UtcNow },
 				{ "old_balance", oldBalance },
-				{ "new _balance", newBalance }
+				{ "new_balance", newBalance }
 			};
-			foreach (KeyValuePair<string, object> pair in extra)
+			foreach (KeyValuePair<string, object> pair in extra.Where(x => !x.Key.StartsWith("cooldown")))
 			{
 				transaction.Add(pair.Key, pair.Value);
 			}
 			Logger(new ApiLogMessage($"Recording transaction: {{{string.Join(",", transaction.Select(kv => kv.Key + " - " + kv.Value.ToString()).ToArray())}}}", ApiLogLevel.Debug));
 			await RecordTransaction(transaction);
 			return transaction;
+		}
+
+		private void SoftTimerElapsed(string id)
+		{
+			Cooldown cooldown = cooldownDict[id];
+			cooldown.softCooldown.CooldownTimer.Dispose();
+			cooldownDict.Remove(id);
 		}
 
 		public async Task<List<Dictionary<string, object>>> MakeTransactions(

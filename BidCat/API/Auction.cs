@@ -17,7 +17,7 @@ namespace BidCat.API
 		private bool SoftCooldownEnabled;
 		private bool HardCooldownEnabled;
 
-		private Dictionary<string, Cooldown> cooldownDict;
+		private Dictionary<string, Cooldown> cooldownDict = new Dictionary<string, Cooldown>();
 
 		private Cooldown DefaultCooldown = new Cooldown();
 
