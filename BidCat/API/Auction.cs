@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using MongoDB.Driver.Core.Authentication;
+using System.Timers;
 
 namespace BidCat.API
 {
@@ -14,8 +14,14 @@ namespace BidCat.API
 		private Dictionary<string, List<Tuple<int, int>>> lotDict = new Dictionary<string, List<Tuple<int, int>>>();
 
 		private List<string> ChangesTracker = new List<string>();
+		private bool SoftCooldownEnabled;
+		private bool HardCooldownEnabled;
 
-		AbstractBank bank;
+		private Dictionary<string, Cooldown> cooldownDict;
+
+		private Cooldown DefaultCooldown = new Cooldown();
+
+		public AbstractBank bank;
 		public Auction(Action<ApiLogMessage> logger, AbstractBank bank)
 		{
 			this.bank = bank;
@@ -62,11 +68,96 @@ namespace BidCat.API
 		}
 
 #pragma warning disable 1998
-		public async Task Clear()
+		public async Task<Cooldown> GetCooldown(string lotId)
 		{
-			lotDict.Clear();
+			cooldownDict.TryGetValue(lotId, out Cooldown value);
+			return value;
 		}
 #pragma warning restore 1998
+
+		public async Task<Dictionary<string, Cooldown>> GetCooldowns(IEnumerable<string> lotIds)
+		{
+			Dictionary<string, Cooldown> ret = new Dictionary<string, Cooldown>();
+			foreach (string id in lotIds)
+				ret.Add(id, await GetCooldown(id));
+			return ret;
+		}
+
+		public async Task Clear()
+		{
+			Dictionary<string, object> winner = await GetWinner();
+			string winningLot = (string) winner["item"];
+			Cooldown cooldown = cooldownDict.ContainsKey(winningLot) ? cooldownDict[winningLot] : new Cooldown(DefaultCooldown);
+
+			if (SoftCooldownEnabled)
+			{
+				if (cooldown.softCooldown.CooldownActive)
+				{
+					cooldown.softCooldown.CooldownLength += cooldown.softCooldown.CooldownIncrementLength;
+					cooldown.softCooldown.CooldownMinimumBid += cooldown.softCooldown.CooldownIncrementAmount;
+					if (!cooldown.softCooldown.CooldownLotBased)
+					{
+						cooldown.softCooldown.DueTime =
+							cooldown.softCooldown.DueTime.AddMilliseconds(cooldown.softCooldown
+								.CooldownIncrementLength);
+						cooldown.softCooldown.CooldownTimer.Stop();
+						cooldown.softCooldown.CooldownTimer.Dispose();
+						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer.Elapsed += delegate { SoftTimerElapsed(winningLot); };
+						cooldown.softCooldown.CooldownTimer.Start();
+					}
+				}
+				else
+				{
+					cooldown.softCooldown = new Cooldown.SoftCooldown(DefaultCooldown.softCooldown)
+					{
+						CooldownActive = true
+					};
+					if (!cooldown.softCooldown.CooldownLotBased)
+					{
+						cooldown.softCooldown.DueTime =
+							DateTime.UtcNow.AddMilliseconds(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer = new Timer(cooldown.softCooldown.CooldownLength);
+						cooldown.softCooldown.CooldownTimer.Elapsed += delegate { SoftTimerElapsed(winningLot); };
+						cooldown.softCooldown.CooldownTimer.Start();
+					}
+				}
+			}
+
+			if (HardCooldownEnabled)
+			{
+				cooldown.hardCooldown = new Cooldown.HardCooldown(DefaultCooldown.hardCooldown) {CooldownActive = true};
+				if (!cooldown.hardCooldown.CooldownLotBased)
+				{
+					cooldown.hardCooldown.DueTime =
+						DateTime.UtcNow.AddMilliseconds(cooldown.hardCooldown.CooldownLength);
+					cooldown.hardCooldown.CooldownTimer = new Timer(cooldown.hardCooldown.CooldownLength);
+					cooldown.hardCooldown.CooldownTimer.Elapsed += delegate { HardTimerElapsed(winningLot); };
+					cooldown.hardCooldown.CooldownTimer.Start();
+				}
+			}
+			if (!cooldownDict.ContainsKey(winningLot))
+				cooldownDict.Add(winningLot, cooldown);
+
+			foreach (KeyValuePair<string, Cooldown> kvp in cooldownDict.Where(x =>
+				x.Value.softCooldown.CooldownLotBased && x.Key != winningLot))
+			{
+				kvp.Value.softCooldown.CooldownLength--;
+				if (kvp.Value.softCooldown.CooldownLength != 0) continue;
+				kvp.Value.softCooldown.CooldownActive = false;
+				if (!kvp.Value.hardCooldown.CooldownActive) cooldownDict.Remove(kvp.Key);
+			}
+
+			foreach (KeyValuePair<string, Cooldown> kvp in cooldownDict.Where(
+				x => x.Value.hardCooldown.CooldownLotBased && x.Key != winningLot))
+			{
+				kvp.Value.hardCooldown.CooldownLength--;
+				if (kvp.Value.hardCooldown.CooldownLength != 0) continue;
+				kvp.Value.hardCooldown.CooldownActive = false;
+				if (!kvp.Value.softCooldown.CooldownActive) cooldownDict.Remove(kvp.Key);
+			}
+			lotDict.Clear();
+		}
 
 		public async Task PlaceBid(int user, string item, int amount)
 		{
@@ -155,6 +246,36 @@ namespace BidCat.API
 
 #pragma warning disable 1998
 		public async Task<Dictionary<string, List<Tuple<int, int>>>> GetAllBids() => lotDict;
+
+		public async Task RegisterSoftCooldown(int cooldownLength, int cooldownIncrementLength, int cooldownMinBid,
+			int cooldownIncrementAmount, bool lotBased)
+		{
+			SoftCooldownEnabled = true;
+			DefaultCooldown.softCooldown.CooldownLength = cooldownLength;
+			DefaultCooldown.softCooldown.CooldownIncrementAmount = cooldownIncrementAmount;
+			DefaultCooldown.softCooldown.CooldownIncrementLength = cooldownIncrementLength;
+			DefaultCooldown.softCooldown.CooldownMinimumBid = cooldownMinBid;
+			DefaultCooldown.softCooldown.CooldownLotBased = lotBased;
+		}
+
+		public async Task DeregisterSoftCooldown()
+		{
+			SoftCooldownEnabled = false;
+			DefaultCooldown.softCooldown = new Cooldown.SoftCooldown();
+		}
+
+		public async Task RegisterHardCooldown(int cooldownLength, bool lotBased)
+		{
+			HardCooldownEnabled = true;
+			DefaultCooldown.hardCooldown.CooldownLength = cooldownLength;
+			DefaultCooldown.hardCooldown.CooldownLotBased = lotBased;
+		}
+
+		public async Task DeregisterHardCooldown()
+		{
+			HardCooldownEnabled = false;
+			DefaultCooldown.hardCooldown = new Cooldown.HardCooldown();
+		}
 #pragma warning restore 1998
 
 		private void UpdateLastChange(string item)
@@ -162,6 +283,28 @@ namespace BidCat.API
 			if (ChangesTracker.Contains(item))
 				ChangesTracker.Remove(item);
 			ChangesTracker.Add(item);
+		}
+
+		private void SoftTimerElapsed(string item)
+		{
+			Cooldown cooldown = cooldownDict[item];
+			cooldown.softCooldown.CooldownTimer.Stop();
+			cooldown.softCooldown.CooldownTimer.Dispose();
+			cooldown.softCooldown.CooldownTimer = null;
+			cooldown.softCooldown.CooldownActive = false;
+			if (!cooldown.hardCooldown.CooldownActive)
+				cooldownDict.Remove(item);
+		}
+
+		private void HardTimerElapsed(string item)
+		{
+			Cooldown cooldown = cooldownDict[item];
+			cooldown.hardCooldown.CooldownTimer.Stop();
+			cooldown.hardCooldown.CooldownTimer.Dispose();
+			cooldown.hardCooldown.CooldownTimer = null;
+			cooldown.hardCooldown.CooldownActive = false;
+			if (!cooldown.softCooldown.CooldownActive)
+				cooldownDict.Remove(item);
 		}
 
 		private async Task HandleBid(int user, string item, int amount, bool replace = false,
@@ -174,11 +317,18 @@ namespace BidCat.API
 
 			int? previousBid = null;
 			if (lotDict.TryGetValue(item, out _))
-			{
 				previousBid = lotDict[item].FirstOrDefault(x => x.Item1 == user)?.Item2;
-			}
 
 			bool alreadyBid = previousBid != null;
+			if (cooldownDict.ContainsKey(item))
+			{
+				Cooldown cooldown = cooldownDict[item];
+				if (amount < cooldown.softCooldown.CooldownMinimumBid && cooldown.softCooldown.CooldownActive)
+					throw new BidTooLowError(
+						$"The minimum bid for this item is currently {cooldown.softCooldown.CooldownMinimumBid}, you cannot bid {amount}");
+				if (cooldown.hardCooldown.CooldownActive)
+					throw new BiddingError("You currently cannot bid on this item.");
+			}
 
 			if (!replace && alreadyBid)
 				throw new AlreadyBidError("There is already a bid from that user on that item.");

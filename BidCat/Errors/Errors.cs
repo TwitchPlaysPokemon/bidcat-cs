@@ -55,4 +55,13 @@ namespace BidCat
 		public VisiblyLoweredError(string message = null)
 			: base(message) { }
 	}
+
+	/// <summary>
+	/// Raised when the bid is too low as according to the soft cooldown
+	/// </summary>
+	public class BidTooLowError : BiddingError
+	{
+		public BidTooLowError(string message = null)
+			: base(message) { }
+	}
 }
