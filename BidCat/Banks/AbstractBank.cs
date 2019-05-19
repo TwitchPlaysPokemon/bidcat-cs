@@ -7,7 +7,7 @@ using System.Timers;
 
 namespace BidCat.Banks
 {
-	public abstract class AbstractBank
+	public abstract class AbstractBank : IDisposable
 	{
 		/// <summary>
 		/// A list of functions that take a user and return reserved money
@@ -92,49 +92,41 @@ namespace BidCat.Banks
 				{
 					if (cooldownDict.ContainsKey((string) extra["cooldown_id"]))
 					{
-						Cooldown cooldown = cooldownDict[(string) extra["cooldown_id"]];
-						if (cooldown.softCooldown.CooldownActive)
+						Cooldown cooldown = cooldownDict[(string)extra["cooldown_id"]];
+						if (cooldown.softCooldowns.Any(x => x.CooldownActive))
 						{
 							int absChange = Math.Abs(change);
-							if (absChange < cooldown.softCooldown.CooldownMinimumBid)
+							int minBid = cooldown.softCooldowns.Where(x => x.CooldownActive)
+								.Sum(x => x.CooldownMinimumBid);
+							if (absChange < minBid)
 								throw new BidTooLowError(
-									$"The minimum bid for this item is currently {cooldown.softCooldown.CooldownMinimumBid}, you cannot bid {absChange}");
-							cooldown.softCooldown.CooldownLength += cooldown.softCooldown.CooldownIncrementLength;
-							cooldown.softCooldown.CooldownMinimumBid += cooldown.softCooldown.CooldownIncrementAmount;
-							cooldown.softCooldown.DueTime =
-								cooldown.softCooldown.DueTime.AddMilliseconds(cooldown.softCooldown
-									.CooldownIncrementLength);
-							cooldown.softCooldown.CooldownTimer.Stop();
-							cooldown.softCooldown.CooldownTimer.Dispose();
-							cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
-							cooldown.softCooldown.CooldownTimer.Elapsed += delegate
-							{
-								SoftTimerElapsed((string) extra["id"]);
-							};
-							cooldown.softCooldown.CooldownTimer.Start();
+									$"The minimum bid for this item is currently {minBid}, you cannot bid {absChange}");
 						}
 					}
-					else if (cooldownActive)
+					if (cooldownActive)
 					{
-						Cooldown cooldown = new Cooldown
+						Cooldown cooldown = cooldownDict.ContainsKey((string) extra["cooldown_id"]) ? cooldownDict[(string) extra["cooldown_id"]] : new Cooldown();
+						Cooldown.SoftCooldown softCooldown = new Cooldown.SoftCooldown
 						{
-							softCooldown =
-							{
-								CooldownActive = true,
-								CooldownIncrementAmount = (int) extra["cooldown_increment_amount"],
-								CooldownIncrementLength = (int) extra["cooldown_increment_length"],
-								CooldownLength = (int) extra["cooldown_length"],
-								CooldownMinimumBid = (int) extra["cooldown_minimum_bid"]
-							}
+							CooldownActive = true,
+							CooldownIncrementAmount = (int)extra["cooldown_increment_amount"],
+							CooldownIncrementLength = (int)extra["cooldown_increment_length"],
+							CooldownLength = (int)extra["cooldown_length"],
+							CooldownMinimumBid = (int)extra["cooldown_minimum_bid"]
 						};
-						cooldown.softCooldown.DueTime = DateTime.UtcNow.AddMilliseconds(cooldown.softCooldown.CooldownLength);
-						cooldown.softCooldown.CooldownTimer = new Timer((cooldown.softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
-						cooldown.softCooldown.CooldownTimer.Elapsed += delegate
+
+						softCooldown.DueTime = DateTime.UtcNow.AddMilliseconds(softCooldown.CooldownLength);
+						softCooldown.CooldownTimer = new Timer((softCooldown.DueTime - DateTime.UtcNow).TotalMilliseconds);
+						softCooldown.CooldownTimer.Elapsed += delegate
 						{
-							SoftTimerElapsed((string) extra["cooldown_id"]);
+							SoftTimerElapsed((string)extra["id"], softCooldown);
 						};
-						cooldown.softCooldown.CooldownTimer.Start();
-						cooldownDict.Add((string) extra["cooldown_id"], cooldown);
+						softCooldown.CooldownTimer.Start();
+						cooldown.softCooldowns.Add(softCooldown);
+						if (!cooldownDict.ContainsKey((string) extra["cooldown_id"]))
+						{
+							cooldownDict.Add((string)extra["cooldown_id"], cooldown);
+						}
 					}
 				}
 			}
@@ -159,11 +151,13 @@ namespace BidCat.Banks
 			return transaction;
 		}
 
-		private void SoftTimerElapsed(string id)
+		private void SoftTimerElapsed(string id, Cooldown.SoftCooldown softCooldown)
 		{
 			Cooldown cooldown = cooldownDict[id];
-			cooldown.softCooldown.CooldownTimer.Dispose();
-			cooldownDict.Remove(id);
+			softCooldown.CooldownTimer.Dispose();
+			cooldown.softCooldowns.Remove(softCooldown);
+			if (cooldown.softCooldowns.Count == 0)
+				cooldownDict.Remove(id);
 		}
 
 		public async Task<List<Dictionary<string, object>>> MakeTransactions(
@@ -192,5 +186,21 @@ namespace BidCat.Banks
 		/// </remarks>
 		/// <param name="checker"></param>
 		public void DeregisterReservedMoneyChecker(Func<int, Task<int>> checker) => ReservedMoneyCheckerFunctions.Remove(checker);
+
+		public void Dispose()
+		{
+			foreach (Func<int, Task<int>> reservedMoneyChecker in ReservedMoneyCheckerFunctions)
+			{
+				DeregisterReservedMoneyChecker(reservedMoneyChecker);
+			}
+			foreach (KeyValuePair<string, Cooldown> cooldown in cooldownDict)
+			{
+				foreach (Cooldown.SoftCooldown softCooldown in cooldown.Value.softCooldowns)
+				{
+					softCooldown.CooldownTimer.Stop();
+					softCooldown.CooldownTimer.Dispose();
+				}
+			}
+		}
 	}
 }

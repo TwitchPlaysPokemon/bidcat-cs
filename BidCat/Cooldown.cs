@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Timers;
 using Newtonsoft.Json;
 
@@ -6,7 +7,7 @@ namespace BidCat
 {
 	public class Cooldown
 	{
-		public SoftCooldown softCooldown = new SoftCooldown();
+		public List<SoftCooldown> softCooldowns = new List<SoftCooldown>();
 		public HardCooldown hardCooldown = new HardCooldown();
 
 		public class SoftCooldown
@@ -61,14 +62,22 @@ namespace BidCat
 
 		public Cooldown(Cooldown other)
 		{
-			softCooldown.CooldownLength = other.softCooldown.CooldownLength;
-			softCooldown.CooldownActive = other.softCooldown.CooldownActive;
-			softCooldown.CooldownIncrementAmount = other.softCooldown.CooldownIncrementAmount;
-			softCooldown.CooldownIncrementLength = other.softCooldown.CooldownIncrementLength;
-			softCooldown.CooldownLotBased = other.softCooldown.CooldownLotBased;
-			softCooldown.CooldownMinimumBid = other.softCooldown.CooldownMinimumBid;
-			softCooldown.CooldownTimer = other.softCooldown.CooldownTimer;
-			softCooldown.DueTime = other.softCooldown.DueTime;
+			foreach (SoftCooldown otherSoftCooldown in other.softCooldowns)
+			{
+				SoftCooldown softCooldown = new SoftCooldown
+				{
+					CooldownLength = otherSoftCooldown.CooldownLength,
+					CooldownActive = otherSoftCooldown.CooldownActive,
+					CooldownIncrementAmount = otherSoftCooldown.CooldownIncrementAmount,
+					CooldownIncrementLength = otherSoftCooldown.CooldownIncrementLength,
+					CooldownLotBased = otherSoftCooldown.CooldownLotBased,
+					CooldownMinimumBid = otherSoftCooldown.CooldownMinimumBid,
+					CooldownTimer = otherSoftCooldown.CooldownTimer,
+					DueTime = otherSoftCooldown.DueTime
+				};
+				softCooldowns.Add(softCooldown);
+			}
+
 			hardCooldown.CooldownTimer = other.hardCooldown.CooldownTimer;
 			hardCooldown.CooldownActive = other.hardCooldown.CooldownActive;
 			hardCooldown.CooldownLength = other.hardCooldown.CooldownLength;
