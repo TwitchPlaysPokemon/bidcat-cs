@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace BidCat
+﻿namespace BidCat
 {
 	public class MutableTuple<T1, T2>
 	{
