@@ -5,9 +5,7 @@ VisualStudioVersion = 16.0.28729.10
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BidCat", "BidCat\BidCat.csproj", "{F131FB5C-9073-4A81-AF3E-00F53538C7A8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiListener", "ApiListener\ApiListener.csproj", "{F89A1811-78C9-4246-939D-0DCA9AE20047}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BidCat-Console", "BidCat-Console\BidCat-Console.csproj", "{1D930585-9CBB-4767-AC75-0982E822CE72}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BidCat-Console", "BidCat-Console\BidCat-Console.csproj", "{1D930585-9CBB-4767-AC75-0982E822CE72}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BidCat-Service", "BidCat-Service\BidCat-Service.csproj", "{3E2BD2FB-BDE3-464F-ADB2-F35BE4A49DAC}"
 EndProject
@@ -21,10 +19,6 @@ Global
 		{F131FB5C-9073-4A81-AF3E-00F53538C7A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F131FB5C-9073-4A81-AF3E-00F53538C7A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F131FB5C-9073-4A81-AF3E-00F53538C7A8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F89A1811-78C9-4246-939D-0DCA9AE20047}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F89A1811-78C9-4246-939D-0DCA9AE20047}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F89A1811-78C9-4246-939D-0DCA9AE20047}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F89A1811-78C9-4246-939D-0DCA9AE20047}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1D930585-9CBB-4767-AC75-0982E822CE72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1D930585-9CBB-4767-AC75-0982E822CE72}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1D930585-9CBB-4767-AC75-0982E822CE72}.Release|Any CPU.ActiveCfg = Release|Any CPU

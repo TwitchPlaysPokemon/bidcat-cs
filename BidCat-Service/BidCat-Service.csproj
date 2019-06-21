@@ -33,8 +33,11 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ApiListener, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\TPP.ApiListener.1.0.0\lib\netstandard2.0\ApiListener.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.12.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.12.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -61,10 +64,6 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ApiListener\ApiListener.csproj">
-      <Project>{F89A1811-78C9-4246-939D-0DCA9AE20047}</Project>
-      <Name>ApiListener</Name>
-    </ProjectReference>
     <ProjectReference Include="..\BidCat\BidCat.csproj">
       <Project>{F131FB5C-9073-4A81-AF3E-00F53538C7A8}</Project>
       <Name>BidCat</Name>
