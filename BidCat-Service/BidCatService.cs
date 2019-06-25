@@ -15,12 +15,12 @@ namespace ServiceWrapper
 		}
 
 		const ApiLogLevel displayLogLevel = ApiLogLevel.Debug;
+		private FileStream logStream = null;
+		private StreamWriter logWriter = null;
 
 		protected override void OnStart(string[] args)
 		{
 			string configJson = File.ReadAllText("BidCatConfig.json");
-			FileStream logStream = null;
-			StreamWriter logWriter = null;
 			try
 			{
 				Listener.Config = JsonConvert.DeserializeObject<Config>(configJson);
@@ -46,7 +46,10 @@ namespace ServiceWrapper
 				if (m.Level >= displayLogLevel)
 				{
 					if (logStream != null)
+					{
 						logWriter?.WriteLine($"{Enum.GetName(typeof(ApiLogLevel), m.Level)?.ToUpper()}: {m.Message}");
+						logWriter?.Flush();
+					}
 				}
 			});
 			Listener.Start();
@@ -55,6 +58,8 @@ namespace ServiceWrapper
 		protected override void OnStop()
 		{
 			Listener.Stop();
+			logWriter.Dispose();
+			logStream.Dispose();
 		}
 	}
 }

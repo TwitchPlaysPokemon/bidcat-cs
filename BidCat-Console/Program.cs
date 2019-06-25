@@ -34,7 +34,10 @@ namespace ConsoleWrapper
 
 				Console.WriteLine($"{Enum.GetName(typeof(ApiLogLevel), m.Level).ToUpper()}: {m.Message}");
 				if (logStream != null)
+				{
 					logWriter?.WriteLine($"{Enum.GetName(typeof(ApiLogLevel), m.Level)?.ToUpper()}: {m.Message}");
+					logWriter?.Flush();
+				}
 
 				Console.ForegroundColor = ConsoleColor.White;
 			}
@@ -81,6 +84,8 @@ namespace ConsoleWrapper
 				Monitor.Wait(monitor);
 			}
 			Listener.Stop();
+			logWriter.Dispose();
+			logStream.Dispose();
 		}
 	}
 }
