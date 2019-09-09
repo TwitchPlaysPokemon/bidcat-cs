@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
+using BidCat.DataStructs;
 
 namespace BidCat.API
 {
@@ -177,15 +178,29 @@ namespace BidCat.API
 				await PlaceBid(user, item, amount);
 		}
 
-		public async Task ReplaceBid(int user, string item, int amount, bool allowVisibleLowering = false)
+		public async Task ReplaceBid(int user, string item, int amount, bool allowVisibleLowering = false, bool allowNewBids = false)
 		{
-			await HandleBid(user, item, amount, true, allowVisibleLowering);
+			if (!allowNewBids)
+			{
+				await HandleBid(user, item, amount, true, allowVisibleLowering);
+			}
+			else
+			{
+				try
+				{
+					await HandleBid(user, item, amount, true, allowVisibleLowering);
+				}
+				catch (NoExistingBidError)
+				{
+					await HandleBid(user, item, amount, false, allowVisibleLowering);
+				}
+			}
 		}
 
-		public async Task ReplaceBids(IEnumerable<Tuple<int, string, int>> bids, bool allowVisibleLowering = false)
+		public async Task ReplaceBids(IEnumerable<Tuple<int, string, int>> bids, bool allowVisibleLowering = false, bool allowNewBids = false)
 		{
 			foreach ((int user, string item, int amount) in bids)
-				await ReplaceBid(user, item, amount, allowVisibleLowering);
+				await ReplaceBid(user, item, amount, allowVisibleLowering, allowNewBids);
 		}
 
 		public async Task IncreaseBid(int user, string item, int amount)
@@ -231,6 +246,27 @@ namespace BidCat.API
 				ret.Add(user, await RemoveBid(user, item));
 			return ret;
 		}
+
+		public Task<bool> RemoveAllBids(int user) => Task.Run(() =>
+		{
+			List<string> list =
+				lotDict.Where(x => x.Value.Any(y => y.Item1 == user)).Select(x => x.Key).ToList();
+			if (!list.Any())
+				return false;
+
+			foreach (string item in list)
+			{
+				lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
+				if (lotDict[item].Any())
+					UpdateLastChange(item);
+				else
+				{
+					lotDict.Remove(item);
+					ChangesTracker.Remove(item);
+				}
+			}
+			return true;
+		});
 
 		public Task<List<Tuple<int, int>>> GetBidsForItem(string item) => Task.Run(() =>
 		{
@@ -425,7 +461,7 @@ namespace BidCat.API
 				{ "item", winningItem },
 				{ "total_bid", totalBid },
 				{ "total_charge", totalCharge },
-				{ "money_owed", moneyOwed }
+				{ "money_owed", moneyOwed.Select(x => new MoneyOwed(x)).ToList() }
 			};
 		}
 	}

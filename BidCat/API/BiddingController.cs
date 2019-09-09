@@ -24,12 +24,13 @@ namespace BidCat.API
 			new ApiCommand("PlaceBid", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).PlaceBid(args.Skip(1).Any() ? int.Parse(args.Skip(1).First()) : throw new ApiError("User ID was not specified"), args.Skip(2).Any() ? args.Skip(2).First() : throw new ApiError("Lot ID was not specified"), args.Skip(3).Any() ? int.Parse(args.Skip(3).First()) : throw new ApiError("Amount was not specified")).Wait(), new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("User ID"), new ApiParameter("Lot ID", "string"), new ApiParameter("Amount") }, "Places a bid on the specified lot"),
 			new ApiCommand("PlaceBids", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).PlaceBids(args.Skip(1).Any() ? JsonConvert.DeserializeObject<List<Tuple<int, string, int>>>(args.Skip(1).First()) : throw new ApiError("Bids were not specified")).Wait(), new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Bids", "List<Tuple<int, string, int>>")}, "Places bids for multiple users, the first item of each tuple is the User ID, the second is the Lot ID, the third is the Amount"),
 			new ApiCommand("GetWinner", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).GetWinner(args.Skip(1).Any() ? bool.Parse(args.Skip(1).First()) : false).Result, new List<ApiParameter>{ new ApiParameter("Discount Later bidders", "bool", true) }, "Gets the winner of the given auction"),
-			new ApiCommand("ReplaceBid", ReplaceBid, new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Allow Visible Lowering", "bool", true), new ApiParameter("User ID"), new ApiParameter("Item ID", "string"), new ApiParameter("Amount") }, "Replaces a user's bid with a different one"),
-			new ApiCommand("ReplaceBids", ReplaceBids, new List<ApiParameter>{ new ApiParameter("Auction ID"), new ApiParameter("Allow Visible Lowering", "bool", true), new ApiParameter("Bids", "List<Tuple<int, string, int>>") }, "Replaces many user's bids with different ones, the first item of the tuple is the user ID, the second is the lot ID, and the third is the amount"),
+			new ApiCommand("ReplaceBid", ReplaceBid, new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Allow Visible Lowering", "bool", true), new ApiParameter("User ID"), new ApiParameter("Lot ID", "string"), new ApiParameter("Amount"), new ApiParameter("Allow New Bids", "bool", true) }, "Replaces a user's bid with a different one"),
+			new ApiCommand("ReplaceBids", ReplaceBids, new List<ApiParameter>{ new ApiParameter("Auction ID"), new ApiParameter("Allow Visible Lowering", "bool", true), new ApiParameter("Bids", "List<Tuple<int, string, int>>"), new ApiParameter("Allow New Bids", "bool", true), }, "Replaces many user's bids with different ones, the first item of the tuple is the user ID, the second is the lot ID, and the third is the amount"),
 			new ApiCommand("IncreaseBid", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).IncreaseBid(args.Skip(1).Any() ? int.Parse(args.Skip(1).First()) : throw new ApiError("User ID was not specified"), args.Skip(2).Any() ? args.Skip(2).First() : throw new ApiError("Lot ID was not specified"), args.Skip(3).Any() ? int.Parse(args.Skip(3).First()) : throw new ApiError("Amount was not specified")).Wait(), new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("User ID"), new ApiParameter("Lot ID", "string"), new ApiParameter("Amount") }, "Increase a bid on the specified lot"),
 			new ApiCommand("IncreaseBids", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).IncreaseBids(args.Skip(1).Any() ? JsonConvert.DeserializeObject<List<Tuple<int, string, int>>>(args.Skip(1).First()) : throw new ApiError("Bids were not specified")).Wait(), new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Bids", "List<Tuple<int, string, int>>")}, "Places bids for multiple users, the first item of each tuple is the User ID, the second is the Lot ID, the third is the Amount to increase by"),
 			new ApiCommand("RemoveBid", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).RemoveBid(args.Skip(1).Any() ? int.Parse(args.Skip(1).First()) : throw new ApiError("User ID was not specified"), args.Skip(2).Any() ? args.Skip(2).First() : throw new ApiError("Lot ID was not specified")).Result, new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("User ID"), new ApiParameter("Lot ID", "string")}, "Removes a user's bid"),
 			new ApiCommand("RemoveBids", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).RemoveBids(args.Skip(1).Any() ? JsonConvert.DeserializeObject<List<Tuple<int, string>>>(args.Skip(1).First()) : throw new ApiError("Bids were not specified")).Result, new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Bids", "List<Tuple<int, string>>")}, "Removes bids for multiple users, the first item of each tuple is the User ID, the second is the Lot ID"),
+			new ApiCommand("RemoveAllBids", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).RemoveAllBids(args.Skip(1).Any() ? int.Parse(args.Skip(1).First()) : throw new ApiError("User ID was not specified")).Result, new List<ApiParameter>{ new ApiParameter("Auction ID"), new ApiParameter("User ID") } ),
 			new ApiCommand("GetBidsForItem", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).GetBidsForItem(args.Skip(1).Any() ? args.Skip(1).First() : throw new ApiError("Lot ID was not specified")).Result, new List<ApiParameter>{ new ApiParameter("Auction ID"), new ApiParameter("Lot ID", "string") }, "Gets all bids for a specified lot"),
 			new ApiCommand("GetBidsForItems", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).GetBidsForItems(args.Skip(1).Any() ? JsonConvert.DeserializeObject<List<string>>(args.Skip(1).First()) : throw new ApiError("Lots were not specified")).Result, new List<ApiParameter> { new ApiParameter("Auction ID"), new ApiParameter("Lots", "List<string>")}, "Gets all bids for multiple lots."),
 			new ApiCommand("GetAllBids", args => GetAuction(args.Any() ? int.Parse(args.First()) : throw new ApiError("Auction ID was not specified")).GetAllBids().Result, new List<ApiParameter> { new ApiParameter("Auction ID") }, "Returns all bids for a specified Auction"),
@@ -132,22 +133,30 @@ namespace BidCat.API
 				if (!args.Skip(2).Any())
 					throw new ApiError("User ID was not specified");
 				if (!args.Skip(3).Any())
-					throw new ApiError("Item ID was not specified");
+					throw new ApiError("Lot ID was not specified");
 				if (!args.Skip(4).Any())
 					throw new ApiError("Amount was not specified");
-				auction.ReplaceBid(int.Parse(args.Skip(2).First()), args.Skip(3).First(),
-					int.Parse(args.Skip(4).First()), result).Wait();
+				if (args.Count() == 6 && bool.TryParse(args.Skip(5).First(), out bool newBids))
+					auction.ReplaceBid(int.Parse(args.Skip(2).First()), args.Skip(3).First(),
+						int.Parse(args.Skip(4).First()), result, newBids).Wait();
+				else
+					auction.ReplaceBid(int.Parse(args.Skip(2).First()), args.Skip(3).First(),
+						int.Parse(args.Skip(4).First()), result).Wait();
 			}
 			else
 			{
 				if (!args.Skip(1).Any())
 					throw new ApiError("User ID was not specified");
 				if (!args.Skip(2).Any())
-					throw new ApiError("Item ID was not specified");
+					throw new ApiError("Lot ID was not specified");
 				if (!args.Skip(3).Any())
 					throw new ApiError("Amount was not specified");
-				auction.ReplaceBid(int.Parse(args.Skip(1).First()), args.Skip(2).First(),
-					int.Parse(args.Skip(3).First())).Wait();
+				if (args.Count() == 5 && bool.TryParse(args.Skip(4).First(), out bool newBids))
+					auction.ReplaceBid(int.Parse(args.Skip(1).First()), args.Skip(2).First(),
+						int.Parse(args.Skip(3).First()), allowNewBids: newBids).Wait();
+				else
+					auction.ReplaceBid(int.Parse(args.Skip(1).First()), args.Skip(2).First(),
+						int.Parse(args.Skip(3).First())).Wait();
 			}
 		}
 
@@ -159,13 +168,19 @@ namespace BidCat.API
 			{
 				List<Tuple<int, string, int>> bids =
 					JsonConvert.DeserializeObject<List<Tuple<int, string, int>>>(args.Skip(2).First());
-				auction.ReplaceBids(bids, result).Wait();
+				if (args.Count() == 4 && bool.TryParse(args.Skip(3).First(), out bool newBids))
+					auction.ReplaceBids(bids, result, newBids).Wait();
+				else
+					auction.ReplaceBids(bids, result).Wait();
 			}
 			else
 			{
 				List<Tuple<int, string, int>> bids =
 					JsonConvert.DeserializeObject<List<Tuple<int, string, int>>>(args.Skip(1).First());
-				auction.ReplaceBids(bids).Wait();
+				if (args.Count() == 3 && bool.TryParse(args.Skip(2).First(), out bool newBids))
+					auction.ReplaceBids(bids, allowNewBids: newBids).Wait();
+				else
+					auction.ReplaceBids(bids).Wait();
 			}
 		}
 	}

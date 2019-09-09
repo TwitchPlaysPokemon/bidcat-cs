@@ -1,4 +1,4 @@
-﻿namespace BidCat
+﻿namespace BidCat.DataStructs
 {
 	public class MutableTuple<T1, T2>
 	{
