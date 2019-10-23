@@ -12,7 +12,7 @@ namespace BidCat.API
 	public class Auction
 	{
 		// Lot ID, User ID, Amount
-		private Dictionary<string, List<Tuple<int, int>>> lotDict = new Dictionary<string, List<Tuple<int, int>>>();
+		private Dictionary<string, List<BidTuple>> lotDict = new Dictionary<string, List<BidTuple>>();
 
 		private List<string> ChangesTracker = new List<string>();
 		private bool SoftCooldownEnabled;
@@ -61,10 +61,10 @@ namespace BidCat.API
 		public Task<Dictionary<string, int>> GetBidsForUser(int userId) => Task.Run(() =>
 		{
 			Dictionary<string, int> bids = new Dictionary<string, int>();
-			foreach (KeyValuePair<string, List<Tuple<int, int>>> pair in lotDict)
+			foreach (KeyValuePair<string, List<BidTuple>> pair in lotDict)
 			{
-				if (pair.Value.Any(x => x.Item1 == userId))
-					bids.Add(pair.Key, pair.Value.First(x => x.Item1 == userId).Item2);
+				if (pair.Value.Any(x => x.UserId == userId))
+					bids.Add(pair.Key, pair.Value.First(x => x.UserId == userId).Amount);
 			}
 
 			return bids;
@@ -207,10 +207,10 @@ namespace BidCat.API
 		{
 			if (!lotDict.ContainsKey(item))
 				throw new NoExistingBidError("There is no bid from that user on that item which could be replaced.");
-			Tuple<int, int> userObj = lotDict[item].FirstOrDefault(x => x.Item1 == user);
+			BidTuple userObj = lotDict[item].FirstOrDefault(x => x.UserId == user);
 			if (userObj == null)
 				throw new NoExistingBidError("There is no bid from that user on that item which could be replaced.");
-			int previousBid = userObj.Item2;
+			int previousBid = userObj.Amount;
 			await ReplaceBid(user, item, amount + previousBid);
 		}
 
@@ -222,12 +222,12 @@ namespace BidCat.API
 
 		public Task<bool> RemoveBid(int user, string item) => Task.Run(() =>
 		{
-			if (!lotDict.ContainsKey(item) || lotDict[item].FirstOrDefault(x => x.Item1 == user) == null)
+			if (!lotDict.ContainsKey(item) || lotDict[item].FirstOrDefault(x => x.UserId == user) == null)
 			{
 				return false;
 			}
 
-			lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
+			lotDict[item].Remove(lotDict[item].First(x => x.UserId == user));
 			if (lotDict[item].Any())
 				UpdateLastChange(item);
 			else
@@ -250,13 +250,13 @@ namespace BidCat.API
 		public Task<bool> RemoveAllBids(int user) => Task.Run(() =>
 		{
 			List<string> list =
-				lotDict.Where(x => x.Value.Any(y => y.Item1 == user)).Select(x => x.Key).ToList();
+				lotDict.Where(x => x.Value.Any(y => y.UserId == user)).Select(x => x.Key).ToList();
 			if (!list.Any())
 				return false;
 
 			foreach (string item in list)
 			{
-				lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
+				lotDict[item].Remove(lotDict[item].First(x => x.UserId == user));
 				if (lotDict[item].Any())
 					UpdateLastChange(item);
 				else
@@ -268,22 +268,22 @@ namespace BidCat.API
 			return true;
 		});
 
-		public Task<List<Tuple<int, int>>> GetBidsForItem(string item) => Task.Run(() =>
+		public Task<List<BidTuple>> GetBidsForItem(string item) => Task.Run(() =>
 		{
 			if (!lotDict.ContainsKey(item))
 				throw new ApiError("The specified lot does not exist");
 			return lotDict[item];
 		});
 
-		public async Task<Dictionary<string, List<Tuple<int, int>>>> GetBidsForItems(IEnumerable<string> items)
+		public async Task<Dictionary<string, List<BidTuple>>> GetBidsForItems(IEnumerable<string> items)
 		{
-			Dictionary<string, List<Tuple<int, int>>> ret = new Dictionary<string, List<Tuple<int, int>>>();
+			Dictionary<string, List<BidTuple>> ret = new Dictionary<string, List<BidTuple>>();
 			foreach (string item in items)
 				ret.Add(item, await GetBidsForItem(item));
 			return ret;
 		}
 
-		public Task<Dictionary<string, List<Tuple<int, int>>>> GetAllBids() => Task.Run(() => lotDict);
+		public Task<Dictionary<string, List<BidTuple>>> GetAllBids() => Task.Run(() => lotDict);
 
 		public Task RegisterSoftCooldown(int cooldownLength, int cooldownIncrementLength, int cooldownMinBid,
 			int cooldownIncrementAmount, bool lotBased) => Task.Run(() =>
@@ -363,7 +363,7 @@ namespace BidCat.API
 
 			int? previousBid = null;
 			if (lotDict.TryGetValue(item, out _))
-				previousBid = lotDict[item].FirstOrDefault(x => x.Item1 == user)?.Item2;
+				previousBid = lotDict[item].FirstOrDefault(x => x.UserId == user)?.Amount;
 
 			bool alreadyBid = previousBid != null;
 
@@ -392,42 +392,44 @@ namespace BidCat.API
 
 			UpdateLastChange(item);
 			if (!lotDict.ContainsKey(item))
-				lotDict[item] = new List<Tuple<int, int>>();
-			if (replace && lotDict[item].Any(x => x.Item1 == user))
-				lotDict[item].Remove(lotDict[item].First(x => x.Item1 == user));
-			lotDict[item].Add(new Tuple<int, int>(user, amount));
+				lotDict[item] = new List<BidTuple>();
+			if (replace && lotDict[item].Any(x => x.UserId == user))
+				lotDict[item].Remove(lotDict[item].First(x => x.UserId == user));
+			lotDict[item].Add(new BidTuple{ Amount = amount, UserId = user });
 		}
 
-		public Task<List<Tuple<string, List<Tuple<int, int>>>>> GetAllBidsOrdered() => Task.Run(() =>
+		public Task<List<LotBidsTuple>> GetAllBidsOrdered() => Task.Run(() =>
 		{
-			List<Tuple<string, List<Tuple<int, int>>>> result = new List<Tuple<string, List<Tuple<int, int>>>>();
-			foreach (KeyValuePair<string, List<Tuple<int, int>>> kvp in lotDict)
+			List<LotBidsTuple> result = new List<LotBidsTuple>();
+			foreach (KeyValuePair<string, List<BidTuple>> kvp in lotDict)
 			{
-				Tuple<string, List<Tuple<int, int>>> tuple =
-					new Tuple<string, List<Tuple<int, int>>>(kvp.Key, kvp.Value);
+				LotBidsTuple tuple =
+					new LotBidsTuple { LotId = kvp.Key, Bids = kvp.Value };
 				result.Add(tuple);
 			}
 
-			return result.OrderByDescending(x => x.Item2.Sum(y => y.Item2)).ToList();
+			result = result.OrderByDescending(x => x.Bids.Sum(y => y.Amount)).ToList();
+
+			return result;
 		});
 
 		public async Task<Dictionary<string, object>> GetWinner(bool discountLatter = false)
 		{
-			List<Tuple<string, List<Tuple<int, int>>>> bids = await GetAllBidsOrdered();
+			List<LotBidsTuple> bids = await GetAllBidsOrdered();
 			if (!bids.Any())
 				return null;
-			(string winningItem, List<Tuple<int, int>> winningBids) = bids[0];
+			(string winningItem, List<BidTuple> winningBids) = bids[0];
 			int secondBid = 0;
 			if (bids.Count > 1)
 			{
-				List<Tuple<int, int>> secondItemBids = bids[1].Item2;
-				secondBid = secondItemBids.Sum(x => x.Item2);
+				List<BidTuple> secondItemBids = bids[1].Bids;
+				secondBid = secondItemBids.Sum(x => x.Amount);
 			}
 
-			int totalBid = winningBids.Sum(x => x.Item2);
+			int totalBid = winningBids.Sum(x => x.Amount);
 			int overpaid = Math.Max(0, totalBid - secondBid - 1);
 			int totalCharge = totalBid - overpaid;
-			List<MutableTuple<int, int>> moneyOwed = (from userAmountTuple in winningBids.OrderByDescending(x => x.Item2) let percentage = userAmountTuple.Item2 / (double) totalBid select new MutableTuple<int, int>(userAmountTuple.Item1, (int) Math.Ceiling(totalCharge * percentage))).ToList();
+			List<MutableTuple<int, int>> moneyOwed = (from userAmountTuple in winningBids.OrderByDescending(x => x.Amount) let percentage = userAmountTuple.Amount / (double) totalBid select new MutableTuple<int, int>(userAmountTuple.UserId, (int) Math.Ceiling(totalCharge * percentage))).ToList();
 			overpaid = moneyOwed.Sum(x => x.Item2) - totalCharge;
 			List<MutableTuple<int, int>> array = new List<MutableTuple<int, int>>();
 			array.AddRange(moneyOwed);
