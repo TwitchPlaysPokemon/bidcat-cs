@@ -14,9 +14,7 @@ namespace BidCat
 		{
 			public bool CooldownActive = false;
 			public int CooldownLength;
-			public int CooldownIncrementLength;
 			public int CooldownMinimumBid;
-			public int CooldownIncrementAmount;
 			[JsonIgnore]
 			public Timer CooldownTimer;
 			public DateTime DueTime;
@@ -29,8 +27,6 @@ namespace BidCat
 			{
 				CooldownActive = other.CooldownActive;
 				CooldownTimer = other.CooldownTimer;
-				CooldownIncrementAmount = other.CooldownIncrementAmount;
-				CooldownIncrementLength = other.CooldownIncrementLength;
 				CooldownLength = other.CooldownLength;
 				CooldownLotBased = other.CooldownLotBased;
 				CooldownMinimumBid = other.CooldownMinimumBid;
@@ -68,8 +64,6 @@ namespace BidCat
 				{
 					CooldownLength = otherSoftCooldown.CooldownLength,
 					CooldownActive = otherSoftCooldown.CooldownActive,
-					CooldownIncrementAmount = otherSoftCooldown.CooldownIncrementAmount,
-					CooldownIncrementLength = otherSoftCooldown.CooldownIncrementLength,
 					CooldownLotBased = otherSoftCooldown.CooldownLotBased,
 					CooldownMinimumBid = otherSoftCooldown.CooldownMinimumBid,
 					CooldownTimer = otherSoftCooldown.CooldownTimer,

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
 using BidCat.DataStructs;
+using Newtonsoft.Json;
 
 namespace BidCat.API
 {
@@ -285,13 +286,10 @@ namespace BidCat.API
 
 		public Task<Dictionary<string, List<BidTuple>>> GetAllBids() => Task.Run(() => lotDict);
 
-		public Task RegisterSoftCooldown(int cooldownLength, int cooldownIncrementLength, int cooldownMinBid,
-			int cooldownIncrementAmount, bool lotBased) => Task.Run(() =>
+		public Task RegisterSoftCooldown(int cooldownLength, int cooldownMinBid, bool lotBased) => Task.Run(() =>
 		{
 			SoftCooldownEnabled = true;
 			DefaultSoftCooldown.CooldownLength = cooldownLength;
-			DefaultSoftCooldown.CooldownIncrementAmount = cooldownIncrementAmount;
-			DefaultSoftCooldown.CooldownIncrementLength = cooldownIncrementLength;
 			DefaultSoftCooldown.CooldownMinimumBid = cooldownMinBid;
 			DefaultSoftCooldown.CooldownLotBased = lotBased;
 		});
@@ -354,6 +352,8 @@ namespace BidCat.API
 			{
 				Cooldown cooldown = cooldownDict[item];
 				int minbid = cooldown.softCooldowns.Where(x => x.CooldownActive).Sum(x => x.CooldownMinimumBid);
+				Console.WriteLine(minbid);
+				Console.WriteLine(JsonConvert.SerializeObject(cooldown.softCooldowns.Where(x => x.CooldownActive)));
 				if (cooldown.hardCooldown.CooldownActive)
 					throw new BiddingError("You currently cannot bid on this item.");
 				if (amount < minbid)
