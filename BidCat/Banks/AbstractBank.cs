@@ -41,6 +41,29 @@ namespace BidCat.Banks
 		}
 
 		/// <summary>
+		/// Determines the total amount of reserved money for multiple users.
+		/// </summary>
+		/// <remarks>
+		/// Reserved money is money that is reserved "in memory" and not
+		/// represented in storage.
+		/// </remarks>
+		/// <param name="userIds">ids of the users to determine the amount of reserved money for.</param>
+		/// <returns>Dictionary of user id to money</returns>
+		public async Task<Dictionary<int, int>> GetReservedMoneyMultiple(IEnumerable<int> userIds)
+		{
+			Dictionary<int, int> ret = new Dictionary<int, int>();
+			foreach (int user in userIds)
+			{
+				if (ret.ContainsKey(user))
+					throw new ApiError($"Duplicate user ID: {user}");
+
+				ret.Add(user, await GetReservedMoney(user));
+			}
+
+			return ret;
+		}
+
+		/// <summary>
 		/// Get the amount ot all a user's money, including reserved.
 		/// </summary>
 		/// <param name="userId">id of the user to get the total money for.</param>
@@ -58,6 +81,25 @@ namespace BidCat.Banks
 		public async Task<int> GetAvailableMoney(int userId)
 		{
 			return (await GetTotalMoney(userId)) - (await GetReservedMoney(userId));
+		}
+
+		/// <summary>
+		/// Get the amount of money available to multiple users.
+		/// </summary>
+		/// <param name="userIds">ids of the users to get available money for.</param>
+		/// <returns>a dictionary of user ids to amount of available money.</returns>
+		public async Task<Dictionary<int, int>> GetAvailableMoneyMultiple(IEnumerable<int> userIds)
+		{
+			Dictionary<int, int> ret = new Dictionary<int, int>();
+			foreach (int user in userIds)
+			{
+				if (ret.ContainsKey(user))
+					throw new ApiError($"Duplicate user ID: {user}");
+
+				ret.Add(user, await GetAvailableMoney(user));
+			}
+
+			return ret;
 		}
 
 		protected abstract Task<int> GetStoredMoneyValue(int userId);
@@ -109,8 +151,6 @@ namespace BidCat.Banks
 						Cooldown.SoftCooldown softCooldown = new Cooldown.SoftCooldown
 						{
 							CooldownActive = true,
-							CooldownIncrementAmount = (int)extra["cooldown_increment_amount"],
-							CooldownIncrementLength = (int)extra["cooldown_increment_length"],
 							CooldownLength = (int)extra["cooldown_length"],
 							CooldownMinimumBid = (int)extra["cooldown_minimum_bid"]
 						};
